@@ -26,32 +26,53 @@ class HDEncoder extends PluginAbstract
 	* @var string Current version of plugin
 	*/
 	public $version = '0.0.1';
-	
+/**
+	 * Performs install operations for plugin. Called when user clicks install
+	 * plugin in admin panel.
+	 *
+	 */
+	public function install()
+	{
+		Settings::set('HD720_encoding_options', '-acodec aac -b:a 128k -ac 2 -ar 44100  -af "aresample=first_pts=0" -pix_fmt yuv420p -vsync -1 -sn -vcodec libx264 -r 30 -vf "scale=min(1280\,trunc(iw/2)*2):trunc(ow/a/2)*2" -threads 0 -maxrate 3000k -bufsize 3000k -preset slower -profile:v high -tune film  -x264opts keyint=60:min-keyint=60:no-scenecut -map_metadata -1 -f mp4 -y');
+	}
 	/**
 	* Attaches plugin methods to hooks in code base
 	*/
 	public function load() {
-		Plugin::attachFilter( 'upload_info.encoder.complete' , array( __CLASS__ , 'hd_encode' ) );
+		Settings::set('HD720_encoding_options', '-acodec aac -b:a 128k -ac 2 -ar 44100  -af "aresample=first_pts=0" -pix_fmt yuv420p -vsync -1 -sn -vcodec libx264 -r 30 -vf "scale=min(1280\,trunc(iw/2)*2):trunc(ow/a/2)*2" -threads 0 -maxrate 3000k -bufsize 3000k -preset slower -profile:v high -tune film  -x264opts keyint=60:min-keyint=60:no-scenecut -map_metadata -1 -f mp4 -y');
+		// Starting at top of upload completion controller, b/c we still have a videoId in the session vars
+		Plugin::attachEvent( 'upload_complete.start' , array( __CLASS__ , 'hd_encode' ) );
 	}
 
 	/**
-	* Prepend queueing command to original encoding command. 
+	* Encode an HD720p version of the video.
 	* 
  	*/
 	public static function hd_encode() {
+//echo "here";
+//exit;
+		// check for existence of original temp file.
+		$config = Registry::get('config');
         // Check settings?  Submitted checkbox?  or keep running all by default?
 	    // if ($makeHD) {
-
+				if (isset($_SESSION['upload']->videoId)) {
+					$video_id = $_SESSION['upload']->videoId; 
+				}
         
         $videoMapper = new VideoMapper();
         $userMapper = new UserMapper();
         $video = $videoMapper->getVideoByCustom(array('video_id' => $video_id, 'status' => VideoMapper::PENDING_CONVERSION));
         $user =$userMapper->getUserById($video->userId);
 
+				//print_r($video);
+			//	exit;
 
-        $ffmpegPath = Settings::get('ffmpeg');
+				$ffmpegPath = Settings::get('ffmpeg');
+				$qt_faststart_path = Settings::get('qtfaststart');
         $debugLog = LOG . '/' . $video->filename . '.log';
-        $rawVideo = UPLOAD_PATH . '/temp/' . $video->filename . '.' . $video->originalExtension;
+				$rawVideo = UPLOAD_PATH . '/temp/' . $video->filename . '.' . $video->originalExtension;
+
+				Filesystem::createDir(UPLOAD_PATH . '/HD720/');
 
         $HD720TempFilePath = UPLOAD_PATH . '/HD720/' . $video->filename . '_temp.mp4';
         $HD720FilePath = UPLOAD_PATH . '/HD720/' . $video->filename . '.mp4';
@@ -77,7 +98,6 @@ class HDEncoder extends PluginAbstract
 
 			// Verify temp H.264 video was created successfully
 			if (!file_exists($HD720TempFilePath) || filesize($HD720TempFilePath) < 1024*5) {
-		    	unlink('/var/local/spool/qdaemon/queue.lock');
 				throw new Exception("The temp H.264 file for $video->userId $user->username was not created. The id of the video is: $video->videoId $video->title");
 			}
 			/////////////////////////////////////////////////////////////
@@ -86,16 +106,15 @@ class HDEncoder extends PluginAbstract
 			/////////////////////////////////////////////////////////////
 
 			// Debug Log
-			$config->debugConversion ? App::log(CONVERSION_LOG, "\nChecking qt-faststart permissions...") : null;
+			//$config->debugConversion ? App::log(CONVERSION_LOG, "\nChecking qt-faststart permissions...") : null;
 
-			if ((string) substr(sprintf('%o', fileperms($qt_faststart_path)), -4) != '0777') {
-				try {
-					Filesystem::setPermissions($qt_faststart_path, 0777);
-				} catch (Exception $e) {
-			    	unlink('/var/local/spool/qdaemon/queue.lock');
-					throw new Exception("Unable to update permissions for qt-faststart. Please make sure it ($qt_faststart_path) has 777 executeable permissions.\n\nAdditional information: " . $e->getMessage());
-				}
-			}
+			// if ((string) substr(sprintf('%o', fileperms($qt_faststart_path)), -4) != '0777') {
+			// 	try {
+			// 		//Filesystem::setPermissions($qt_faststart_path, 0777);
+			// 	} catch (Exception $e) {
+			// 		throw new Exception("Unable to update permissions for qt-faststart. Please make sure it ($qt_faststart_path) has 777 executeable permissions.\n\nAdditional information: " . $e->getMessage());
+			// 	}
+			// }
 
 			// Debug Log
 			$config->debugConversion ? App::log(CONVERSION_LOG, "\nShifting moov atom on H.264 720p video...") : null;
