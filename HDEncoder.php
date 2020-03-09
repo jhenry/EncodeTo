@@ -1,5 +1,5 @@
 <?php
-
+// TODO: rename to more generic, i.e. EncodeTo, AltEncode, etc
 class HDEncoder extends PluginAbstract
 {
   /**
@@ -55,7 +55,6 @@ class HDEncoder extends PluginAbstract
   public static function hd_encode()
   {
 
-    $config = Registry::get('config');
     if (isset($_SESSION['upload']->videoId)) {
       $video_id = $_SESSION['upload']->videoId;
     }
@@ -65,41 +64,59 @@ class HDEncoder extends PluginAbstract
     $video = $videoMapper->getVideoByCustom(array('video_id' => $video_id, 'status' => VideoMapper::PENDING_CONVERSION));
     $user = $userMapper->getUserById($video->userId);
 
-    $ffmpegPath = Settings::get('ffmpeg');
-    $qt_faststart_path = Settings::get('qtfaststart');
-    $debugLogPath = LOG . '/' . $video->filename . '.log';
-    $rawVideo = UPLOAD_PATH . '/temp/' . $video->filename . '.' . $video->originalExtension;
+    $encoderPaths = HDEncoder::getEncoderPaths($video);
+    HDEncoder::HD720P($encoderPaths, $video, 'H.264 720p');
+  }
+/**
+   * Encode to HD720p 
+   * 
+   * @param array $configs array of config variables. 
+   * @param Video $video Video object
+   * @param string $type type of file, i.e. temp, final, HD, mp3, etc. 
+   */
+  private static function HD720P($encoderPaths, $video, $type)
+  {
 
-    $HD720TempFilePath = UPLOAD_PATH . '/HD720/' . $video->filename . '_temp.mp4';
-    $HD720FilePath = UPLOAD_PATH . '/HD720/' . $video->filename . '.mp4';
-    $HD720smilPath = UPLOAD_PATH . '/' . $video->filename . '.smil';
+    $encoderPaths = HDEncoder::getEncoderPaths($video);
+    $encoderHDPaths = HDEncoder::getHDPaths($encoderPaths, $video);
+    extract($encoderHDPaths);
 
-    $HD720Command = "$ffmpegPath -i $rawVideo " . Settings::get('HD720_encoding_options') . " $HD720TempFilePath >> $debugLogPath 2>&1";
+    $command = "$ffmpegPath -i $rawVideo " . Settings::get('HD720_encoding_options') . " $tempFilePath >> $debugLogPath 2>&1";
 
-    HDEncoder::debugLog('H.264 HD 720p Encoding', $debugLogPath, $HD720Command);
+    HDEncoder::debugLog("$type Encoding", $debugLogPath, $command);
 
     // Execute H.264 encoding command
-    exec($HD720Command);
+    exec($command);
 
-    HDEncoder::validateFileCreation($HD720TempFilePath , $video, 'temp H.264 720p');
+    HDEncoder::validateFileCreation($tempFilePath , $video, "temp $type");
+    HDEncoder::shiftMoovAtom($encoderPaths, $video, $type);
+  }
+/**
+   * Shift Moov atom for faster streaming start times.
+   * 
+   * @param array $configs array of config variables. 
+   * @param Video $video Video object
+   * @param string $type type of file, i.e. temp, final, HD, mp3, etc. 
+   */
+  private static function shiftMoovAtom($encoderVars, $video, $type)
+  {
 
-    /////////////////////////////////////////////////////////////
-    //                        STEP 1C                           //
-    //            Shift Moov atom on H.264 video               //
-    /////////////////////////////////////////////////////////////
+    $encoderPaths = HDEncoder::getHDPaths($encoderVars, $video);
+    extract($encoderPaths);
 
     // Debug Log
-    $config->debugConversion ? App::log(CONVERSION_LOG, "\nShifting moov atom on H.264 720p video...") : null;
+    $config = Registry::get('config');
+    $config->debugConversion ? App::log(CONVERSION_LOG, "\nShifting moov atom on $type video...") : null;
 
     // Prepare shift moov atom command
-    $HD720ShiftMoovAtomCommand = "$qt_faststart_path $HD720TempFilePath $HD720FilePath >> $debugLogPath 2>&1";
+    $shiftMoovAtomCommand = "$qt_faststart_path $tempFilePath $filePath >> $debugLogPath 2>&1";
 
-    HDEncoder::debugLog('H.264 720p Shift Moov Atom', $debugLogPath, $HD720ShiftMoovAtomCommand);
+    HDEncoder::debugLog("$type Shift Moov Atom", $debugLogPath, $shiftMoovAtomCommand);
 
     // Execute shift moov atom command
-    exec($HD720ShiftMoovAtomCommand);
+    exec($shiftMoovAtomCommand);
 
-    HDEncoder::validateFileCreation($HD720FilePath , $video, 'final H.264 720p');
+    HDEncoder::validateFileCreation($filePath , $video, "final $type");
   }
 
 /**
@@ -112,12 +129,42 @@ class HDEncoder extends PluginAbstract
    */
   private static function validateFileCreation($path, $video, $type)
   {
+    $config = Registry::get('config');
     $config->debugConversion ? App::log(CONVERSION_LOG, "Verifying $fileValidationType file was created...") : null;
 
     // Verify file was created successfully
     if (!file_exists($path) || filesize($path) < 1024 * 5) {
       throw new Exception("The $type file  for user $video->userId $user->username was not created. The id of the video is: $video->videoId $video->title");
     }
+  }
+  /**
+   * Set encoder paths from configs and filenames.
+   * 
+   * @param Video $video Video object
+   */
+  private static function getEncoderPaths($video)
+  {
+    $ffmpegPath = Settings::get('ffmpeg');
+    $qt_faststart_path = Settings::get('qtfaststart');
+    $debugLogPath = LOG . '/' . $video->filename . '.log';
+    $rawVideo = UPLOAD_PATH . '/temp/' . $video->filename . '.' . $video->originalExtension;
+
+    return compact('ffmpegPath', 'qt_faststart_path', 'debugLogPath', 'rawVideo');
+  }
+  /**
+   * Set HD720 encoder paths from configs and filenames.
+   * 
+   * @param array $encoderPaths keyed array of path variables
+   * @param Video $video Video object
+   */
+  private static function getHDPaths($encoderPaths, $video)
+  {
+    $baseHDPath = UPLOAD_PATH . '/HD720/';
+    $encoderPaths["tempFilePath"] = $baseHDPath. $video->filename . '_temp.mp4';
+    $encoderPaths["filePath"] = $baseHDPath . $video->filename . '.mp4';
+    $encoderPaths["smilPath"] = UPLOAD_PATH . '/' . $video->filename . '.smil';
+
+    return $encoderPaths;
   }
   /**
    * Format and output log info.
@@ -137,6 +184,4 @@ class HDEncoder extends PluginAbstract
     $config->debugConversion ? App::log(CONVERSION_LOG, "$logType Command: " . $command) : null;
     App::log($logPath, $logMessage);
   }
-
-
 }
