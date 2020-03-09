@@ -74,9 +74,9 @@ class HDEncoder extends PluginAbstract
     $HD720FilePath = UPLOAD_PATH . '/HD720/' . $video->filename . '.mp4';
     $HD720smilPath = UPLOAD_PATH . '/' . $video->filename . '.smil';
 
-    $HD720Command = "$ffmpegPath -i $rawVideo " . Settings::get('HD720_encoding_options') . " $HD720TempFilePath >> $debugLog 2>&1";
+    $HD720Command = "$ffmpegPath -i $rawVideo " . Settings::get('HD720_encoding_options') . " $HD720TempFilePath >> $debugLogPath 2>&1";
 
-    HDEncode::debugLog('H.264 HD 720p Encoding', $debugLogPath, $HD720Command);
+    HDEncoder::debugLog('H.264 HD 720p Encoding', $debugLogPath, $HD720Command);
 
     // Execute H.264 encoding command
     exec($HD720Command);
@@ -97,7 +97,7 @@ class HDEncoder extends PluginAbstract
     $config->debugConversion ? App::log(CONVERSION_LOG, "\nShifting moov atom on H.264 720p video...") : null;
 
     // Prepare shift moov atom command
-    $HD720ShiftMoovAtomCommand = "$qt_faststart_path $HD720TempFilePath $HD720FilePath >> $debugLog 2>&1";
+    $HD720ShiftMoovAtomCommand = "$qt_faststart_path $HD720TempFilePath $HD720FilePath >> $debugLogPath 2>&1";
 
     // Debug Log
     $logMessage = "\n\n\n\n==================================================================\n";
@@ -106,7 +106,7 @@ class HDEncoder extends PluginAbstract
     $logMessage .= "H.264 720p Shift Moov Atom Command: $HD720ShiftMoovAtomCommand\n\n";
     $logMessage .= "H.264 720p Shift Moov Atom Output:\n\n";
     $config->debugConversion ? App::log(CONVERSION_LOG, 'H.264720p Shift Moov Atom Command: ' . $HD720ShiftMoovAtomCommand) : null;
-    App::log($debugLog, $logMessage);
+    App::log($debugLogPath, $logMessage);
 
     // Execute shift moov atom command
     exec($HD720ShiftMoovAtomCommand);
@@ -128,15 +128,15 @@ class HDEncoder extends PluginAbstract
    * @param string $message log content
    * 
    */
-  private function debugLog($logType, $logPath, $command)
+  private static function debugLog($logType, $logPath, $command)
   {
     $config = Registry::get('config');
     $logMessage = "\n\n\n\n==================================================================\n";
     $logMessage .= "$logType\n";
     $logMessage .= "==================================================================\n\n";
-    $logMessage .= "$logType Command: $HD720Command\n\n";
+    $logMessage .= "$logType Command: $command\n\n";
     $logMessage .= "$logType Output:\n\n";
-    $config->debugConversion ? App::log(CONVERSION_LOG, "$logType Encoding Command: " . $HD720Command) : null;
+    $config->debugConversion ? App::log(CONVERSION_LOG, "$logType Command: " . $command) : null;
     App::log($logPath, $logMessage);
   }
 
