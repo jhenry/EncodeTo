@@ -99,14 +99,7 @@ class HDEncoder extends PluginAbstract
     // Prepare shift moov atom command
     $HD720ShiftMoovAtomCommand = "$qt_faststart_path $HD720TempFilePath $HD720FilePath >> $debugLogPath 2>&1";
 
-    // Debug Log
-    $logMessage = "\n\n\n\n==================================================================\n";
-    $logMessage .= "H.264 720p SHIFT MOOV ATOM\n";
-    $logMessage .= "==================================================================\n\n";
-    $logMessage .= "H.264 720p Shift Moov Atom Command: $HD720ShiftMoovAtomCommand\n\n";
-    $logMessage .= "H.264 720p Shift Moov Atom Output:\n\n";
-    $config->debugConversion ? App::log(CONVERSION_LOG, 'H.264720p Shift Moov Atom Command: ' . $HD720ShiftMoovAtomCommand) : null;
-    App::log($debugLogPath, $logMessage);
+    HDEncoder::debugLog('H.264 720p Shift Moov Atom', $debugLogPath, $HD720ShiftMoovAtomCommand);
 
     // Execute shift moov atom command
     exec($HD720ShiftMoovAtomCommand);
