@@ -104,16 +104,28 @@ class HDEncoder extends PluginAbstract
     // Execute shift moov atom command
     exec($HD720ShiftMoovAtomCommand);
 
+    $fileValidationType = 'final H.264 720p';
     // Debug Log
-    $config->debugConversion ? App::log(CONVERSION_LOG, 'Verifying final H.264 720p file was created...') : null;
+    $config->debugConversion ? App::log(CONVERSION_LOG, "Verifying $fileValidationType file was created...") : null;
 
-    // Verify H.264 720p video was created successfully
-    if (!file_exists($HD720FilePath) || filesize($HD720FilePath) < 1024 * 5) {
-      //unlink('/var/local/spool/qdaemon/queue.lock');
-      throw new Exception("The final H.264 720p file  for user $video->userId $user->username was not created. The id of the video is: $video->videoId $video->title");
-    }
+    HDEncoder::validateFileCreation($HD720FilePath , $video, $fileValidationType);
   }
 
+/**
+   * Check to see if the file was created and output logs if not.
+   * 
+   * @param string $path path to file
+   * @param Video $video Video object
+   * @param string $type type of file, i.e. temp, final, HD, mp3, etc. 
+   * TODO: log out exception
+   */
+  private static function validateFileCreation($path, $video, $type)
+  {
+    // Verify file was created successfully
+    if (!file_exists($path) || filesize($path) < 1024 * 5) {
+      throw new Exception("The $type file  for user $video->userId $user->username was not created. The id of the video is: $video->videoId $video->title");
+    }
+  }
   /**
    * Format and output log info.
    * 
