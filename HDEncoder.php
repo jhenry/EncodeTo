@@ -1,16 +1,16 @@
 <?php
-// TODO: rename to more generic, i.e. EncodeTo, AltEncode, etc
-class HDEncoder extends PluginAbstract
+
+class EncodeTo extends PluginAbstract
 {
   /**
    * @var string Name of plugin
    */
-  public $name = 'HDEncoder';
+  public $name = 'EncodeTo';
 
   /**
    * @var string Description of plugin
    */
-  public $description = 'Add HD encoding for uploaded videos. Based on work by Wes Wright.';
+  public $description = 'Add support for additional encoding types (such as 720p and mp3) for uploaded media. Based on work by Wes Wright.';
 
   /**
    * @var string Name of plugin author
@@ -64,8 +64,8 @@ class HDEncoder extends PluginAbstract
     $video = $videoMapper->getVideoByCustom(array('video_id' => $video_id, 'status' => VideoMapper::PENDING_CONVERSION));
     $user = $userMapper->getUserById($video->userId);
 
-    $encoderPaths = HDEncoder::getEncoderPaths($video);
-    HDEncoder::HD720P($encoderPaths, $video, 'H.264 720p');
+    $encoderPaths = EncodeTo::getEncoderPaths($video);
+    EncodeTo::HD720P($encoderPaths, $video, 'H.264 720p');
   }
 /**
    * Encode to HD720p 
@@ -77,19 +77,19 @@ class HDEncoder extends PluginAbstract
   private static function HD720P($encoderPaths, $video, $type)
   {
 
-    $encoderPaths = HDEncoder::getEncoderPaths($video);
-    $encoderHDPaths = HDEncoder::getHDPaths($encoderPaths, $video);
+    $encoderPaths = EncodeTo::getEncoderPaths($video);
+    $encoderHDPaths = EncodeTo::getHDPaths($encoderPaths, $video);
     extract($encoderHDPaths);
 
     $command = "$ffmpegPath -i $rawVideo " . Settings::get('HD720_encoding_options') . " $tempFilePath >> $debugLogPath 2>&1";
 
-    HDEncoder::debugLog("$type Encoding", $debugLogPath, $command);
+    EncodeTo::debugLog("$type Encoding", $debugLogPath, $command);
 
     // Execute H.264 encoding command
     exec($command);
 
-    HDEncoder::validateFileCreation($tempFilePath , $video, "temp $type");
-    HDEncoder::shiftMoovAtom($encoderPaths, $video, $type);
+    EncodeTo::validateFileCreation($tempFilePath , $video, "temp $type");
+    EncodeTo::shiftMoovAtom($encoderPaths, $video, $type);
   }
 /**
    * Shift Moov atom for faster streaming start times.
@@ -101,7 +101,7 @@ class HDEncoder extends PluginAbstract
   private static function shiftMoovAtom($encoderVars, $video, $type)
   {
 
-    $encoderPaths = HDEncoder::getHDPaths($encoderVars, $video);
+    $encoderPaths = EncodeTo::getHDPaths($encoderVars, $video);
     extract($encoderPaths);
 
     // Debug Log
@@ -111,12 +111,12 @@ class HDEncoder extends PluginAbstract
     // Prepare shift moov atom command
     $shiftMoovAtomCommand = "$qt_faststart_path $tempFilePath $filePath >> $debugLogPath 2>&1";
 
-    HDEncoder::debugLog("$type Shift Moov Atom", $debugLogPath, $shiftMoovAtomCommand);
+    EncodeTo::debugLog("$type Shift Moov Atom", $debugLogPath, $shiftMoovAtomCommand);
 
     // Execute shift moov atom command
     exec($shiftMoovAtomCommand);
 
-    HDEncoder::validateFileCreation($filePath , $video, "final $type");
+    EncodeTo::validateFileCreation($filePath , $video, "final $type");
   }
 
 /**
