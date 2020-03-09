@@ -54,18 +54,30 @@ class EncodeTo extends PluginAbstract
    */
   public static function hd_encode()
   {
+    $video = EncodeTo::getVideoToEncode();
 
-    if (isset($_SESSION['upload']->videoId)) {
-      $video_id = $_SESSION['upload']->videoId;
-    }
-
-    $videoMapper = new VideoMapper();
     $userMapper = new UserMapper();
-    $video = $videoMapper->getVideoByCustom(array('video_id' => $video_id, 'status' => VideoMapper::PENDING_CONVERSION));
     $user = $userMapper->getUserById($video->userId);
 
     $encoderPaths = EncodeTo::getEncoderPaths($video);
     EncodeTo::HD720P($encoderPaths, $video, 'H.264 720p');
+  }
+  /**
+   * Get Video object based on uploaded video in _SESSION
+   * 
+   */
+  private static function getVideoToEncode()
+  {
+    $videoMapper = new VideoMapper();
+
+    if (isset($_SESSION['upload']->videoId)) {
+      $video_id = $_SESSION['upload']->videoId;
+      $video = $videoMapper->getVideoById($video_id);
+      //$video = $videoMapper->getVideoByCustom(array('video_id' => $video_id, 'status' => VideoMapper::PENDING_CONVERSION));
+      return $video;
+    }
+    
+
   }
 /**
    * Encode to HD720p 
