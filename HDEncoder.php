@@ -81,13 +81,8 @@ class HDEncoder extends PluginAbstract
     // Execute H.264 encoding command
     exec($HD720Command);
 
-    // Debug Log
-    $config->debugConversion ? App::log(CONVERSION_LOG, 'Verifying H.264 video was created...') : null;
+    HDEncoder::validateFileCreation($HD720TempFilePath , $video, 'temp H.264 720p');
 
-    // Verify temp H.264 video was created successfully
-    if (!file_exists($HD720TempFilePath) || filesize($HD720TempFilePath) < 1024 * 5) {
-      throw new Exception("The temp H.264 file for $video->userId $user->username was not created. The id of the video is: $video->videoId $video->title");
-    }
     /////////////////////////////////////////////////////////////
     //                        STEP 1C                           //
     //            Shift Moov atom on H.264 video               //
@@ -104,11 +99,7 @@ class HDEncoder extends PluginAbstract
     // Execute shift moov atom command
     exec($HD720ShiftMoovAtomCommand);
 
-    $fileValidationType = 'final H.264 720p';
-    // Debug Log
-    $config->debugConversion ? App::log(CONVERSION_LOG, "Verifying $fileValidationType file was created...") : null;
-
-    HDEncoder::validateFileCreation($HD720FilePath , $video, $fileValidationType);
+    HDEncoder::validateFileCreation($HD720FilePath , $video, 'final H.264 720p');
   }
 
 /**
@@ -121,6 +112,8 @@ class HDEncoder extends PluginAbstract
    */
   private static function validateFileCreation($path, $video, $type)
   {
+    $config->debugConversion ? App::log(CONVERSION_LOG, "Verifying $fileValidationType file was created...") : null;
+
     // Verify file was created successfully
     if (!file_exists($path) || filesize($path) < 1024 * 5) {
       throw new Exception("The $type file  for user $video->userId $user->username was not created. The id of the video is: $video->videoId $video->title");
