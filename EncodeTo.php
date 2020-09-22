@@ -142,7 +142,7 @@ class EncodeTo extends PluginAbstract
   private static function validateFileCreation($path, $video, $type)
   {
     $config = Registry::get('config');
-    $config->debugConversion ? App::log(CONVERSION_LOG, "Verifying $fileValidationType file was created...") : null;
+    $config->debugConversion ? App::log(CONVERSION_LOG, "Verifying $type file was created...") : null;
 
     // Verify file was created successfully
     if (!file_exists($path) || filesize($path) < 1024 * 5) {
