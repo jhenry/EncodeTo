@@ -56,11 +56,13 @@ class EncodeTo extends PluginAbstract
   {
     $video = EncodeTo::getVideoToEncode();
 
-    $userMapper = new UserMapper();
-    $user = $userMapper->getUserById($video->userId);
+    if (strtolower($video->originalExtension) != 'mp3') {
+      //$userMapper = new UserMapper();
+      //$user = $userMapper->getUserById($video->userId);
 
-    $encoderPaths = EncodeTo::getEncoderPaths($video);
-    EncodeTo::HD720P($encoderPaths, $video, 'H.264 720p');
+      $encoderPaths = EncodeTo::getEncoderPaths($video);
+      EncodeTo::HD720P($encoderPaths, $video, 'H.264 720p');
+    }
   }
   /**
    * Get Video object based on uploaded video in _SESSION
