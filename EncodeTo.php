@@ -130,6 +130,8 @@ class EncodeTo extends PluginAbstract
     // Execute shift moov atom command
     exec($shiftMoovAtomCommand);
 
+    EncodeTo::createSMIL($smilPath, $video);
+
     EncodeTo::validateFileCreation($filePath , $video, "final $type");
   }
 
@@ -164,6 +166,36 @@ class EncodeTo extends PluginAbstract
     $rawVideo = UPLOAD_PATH . '/temp/' . $video->filename . '.' . $video->originalExtension;
 
     return compact('ffmpegPath', 'qt_faststart_path', 'debugLogPath', 'rawVideo');
+  }
+
+  /**
+   * Create SMIL file.
+   * 
+   * @param array $smilPath path to smil file
+   * @param Video $video Video object
+   */
+  private static function createSMIL($smilPath, $video)
+  {
+    $config = Registry::get('config');
+    $config->debugConversion ? App::log(CONVERSION_LOG, "\nCreating SMIL file at $smilPath") : null;
+    $content = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>
+	<smil title=''>
+	<head>
+	</head>
+		<body>
+			<switch>
+        <video height='300' src='mobile/$video->filename.mp4' systemLanguage='eng' width='480'  title='Low'  system-bitrate='644100' />
+        <video height='360' src='h264/$video->filename.mp4' systemLanguage='eng' width='640'   title='Medium' system-bitrate='1068100' />
+        <video height='720' src='HD720/$video->filename.mp4' systemLanguage='eng' width='1280' title='High' system-bitrate='1544100' />
+			</switch>
+		</body>
+  </smil>";
+    try{
+      Filesystem::create($smilPath);
+      Filesystem::write($smilPath,$content);
+    } catch (Exception $e) {
+      $config->debugConversion ? App::log(CONVERSION_LOG, "\nERROR - Problem creating SMIL file at $smilPath: $e") : null;
+    }
   }
   /**
    * Set HD720 encoder paths from configs and filenames.
