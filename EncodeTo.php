@@ -10,7 +10,7 @@ class EncodeTo extends PluginAbstract
   /**
    * @var string Description of plugin
    */
-  public $description = 'Add support for additional encoding types (such as 720p and mp3) for uploaded media. Based on work by Wes Wright.';
+  public $description = 'Add support for additional encoding types (such as 720p) for uploaded media, and creation of SMIL for adaptive bitrate streaming. Based on work by Wes Wright.';
 
   /**
    * @var string Name of plugin author
