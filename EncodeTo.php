@@ -44,13 +44,13 @@ class EncodeTo extends PluginAbstract
   {
     // Starting at top of upload completion controller, b/c we still have a videoId in the session vars
     Plugin::attachEvent('upload_complete.start', array(__CLASS__, 'hd_encode'));
+    Plugin::attachEvent('upload_complete.start', array(__CLASS__, 'createSMIL'));
   }
 
   /**
    * Encode an HD720p version of the video.
    * TODO: validate user, etc
    * TODO: clean up temp files.
-   * TODO: create/set smil?
    */
   public static function hd_encode()
   {
@@ -64,6 +64,7 @@ class EncodeTo extends PluginAbstract
       EncodeTo::HD720P($encoderPaths, $video, 'H.264 720p');
     }
   }
+
   /**
    * Get Video object based on uploaded video in _SESSION
    * 
@@ -130,8 +131,6 @@ class EncodeTo extends PluginAbstract
     // Execute shift moov atom command
     exec($shiftMoovAtomCommand);
 
-    EncodeTo::createSMIL($smilPath, $video);
-
     EncodeTo::validateFileCreation($filePath , $video, "final $type");
   }
 
@@ -174,8 +173,10 @@ class EncodeTo extends PluginAbstract
    * @param array $smilPath path to smil file
    * @param Video $video Video object
    */
-  private static function createSMIL($smilPath, $video)
+  public static function createSMIL()
   {
+    $video = EncodeTo::getVideoToEncode();
+    $smilPath = UPLOAD_PATH . '/' . $video->filename . '.smil';
     $config = Registry::get('config');
     $config->debugConversion ? App::log(CONVERSION_LOG, "\nCreating SMIL file at $smilPath") : null;
     $content = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>
@@ -192,7 +193,7 @@ class EncodeTo extends PluginAbstract
   </smil>";
     try{
       Filesystem::create($smilPath);
-      Filesystem::write($smilPath,$content);
+      Filesystem::write($smilPath,$content, false);
     } catch (Exception $e) {
       $config->debugConversion ? App::log(CONVERSION_LOG, "\nERROR - Problem creating SMIL file at $smilPath: $e") : null;
     }
