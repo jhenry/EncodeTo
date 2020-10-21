@@ -56,12 +56,17 @@ class EncodeTo extends PluginAbstract
   {
     $video = EncodeTo::getVideoToEncode();
 
-    if (strtolower($video->originalExtension) != 'mp3') {
-      //$userMapper = new UserMapper();
-      //$user = $userMapper->getUserById($video->userId);
+    if (!EncodeTo::isAudio($video)) {
+      $config = Registry::get('config');
+      $commandOutput = $config->debugConversion ? CONVERSION_LOG : '/dev/null';
+      $command = 'nohup ' . Settings::get('php') . ' ' . DOC_ROOT . '/cc-content/plugins/EncodeTo/encode.php --video="' . $video->videoId . '" >> ' .  $commandOutput . ' 2>&1 &';
 
-      $encoderPaths = EncodeTo::getEncoderPaths($video);
-      EncodeTo::HD720P($encoderPaths, $video, 'H.264 720p');
+      if (class_exists('QEncoder')) 
+      {
+        $command = QEncoder::q_encoder($command);
+      }
+
+      exec($command);
     }
   }
 
@@ -79,93 +84,23 @@ class EncodeTo extends PluginAbstract
       //$video = $videoMapper->getVideoByCustom(array('video_id' => $video_id, 'status' => VideoMapper::PENDING_CONVERSION));
       return $video;
     }
-    
-
-  }
-/**
-   * Encode to HD720p 
-   * 
-   * @param array $configs array of config variables. 
-   * @param Video $video Video object
-   * @param string $type type of file, i.e. temp, final, HD, mp3, etc. 
-   */
-  private static function HD720P($encoderPaths, $video, $type)
-  {
-
-    $encoderPaths = EncodeTo::getEncoderPaths($video);
-    $encoderHDPaths = EncodeTo::getHDPaths($encoderPaths, $video);
-    extract($encoderHDPaths);
-
-    $command = "$ffmpegPath -i $rawVideo " . Settings::get('HD720_encoding_options') . " $tempFilePath >> $debugLogPath 2>&1";
-
-    EncodeTo::debugLog("$type Encoding", $debugLogPath, $command);
-
-    // Execute H.264 encoding command
-    exec($command);
-
-    EncodeTo::validateFileCreation($tempFilePath , $video, "temp $type");
-    EncodeTo::shiftMoovAtom($encoderPaths, $video, $type);
-  }
-/**
-   * Shift Moov atom for faster streaming start times.
-   * 
-   * @param array $configs array of config variables. 
-   * @param Video $video Video object
-   * @param string $type type of file, i.e. temp, final, HD, mp3, etc. 
-   */
-  private static function shiftMoovAtom($encoderVars, $video, $type)
-  {
-
-    $encoderPaths = EncodeTo::getHDPaths($encoderVars, $video);
-    extract($encoderPaths);
-
-    // Debug Log
-    $config = Registry::get('config');
-    $config->debugConversion ? App::log(CONVERSION_LOG, "\nShifting moov atom on $type video...") : null;
-
-    // Prepare shift moov atom command
-    $shiftMoovAtomCommand = "$qt_faststart_path $tempFilePath $filePath >> $debugLogPath 2>&1";
-
-    EncodeTo::debugLog("$type Shift Moov Atom", $debugLogPath, $shiftMoovAtomCommand);
-
-    // Execute shift moov atom command
-    exec($shiftMoovAtomCommand);
-
-    EncodeTo::validateFileCreation($filePath , $video, "final $type");
   }
 
 /**
-   * Check to see if the file was created and output logs if not.
-   * 
-   * @param string $path path to file
-   * @param Video $video Video object
-   * @param string $type type of file, i.e. temp, final, HD, mp3, etc. 
-   * TODO: log out exception
-   */
-  private static function validateFileCreation($path, $video, $type)
-  {
-    $config = Registry::get('config');
-    $config->debugConversion ? App::log(CONVERSION_LOG, "Verifying $type file was created...") : null;
-
-    // Verify file was created successfully
-    if (!file_exists($path) || filesize($path) < 1024 * 5) {
-      throw new Exception("The $type file  for user $video->userId $user->username was not created. The id of the video is: $video->videoId $video->title");
+ * Checks to see if this is an audio file and that audio is allowed.
+ * @param Video $video The video object to inspect.
+ * @return bool True if audio's allowed and it's an audio file.
+ */
+private static function isAudio(Video $video) 
+{
+    if( class_exists( 'EnableAudio' ) ) {
+        $audioFormats = json_decode(Settings::get('enable_audio_formats'));
+        if( in_array($video->originalExtension, $audioFormats) ) {
+            return true;
+        }
     }
-  }
-  /**
-   * Set encoder paths from configs and filenames.
-   * 
-   * @param Video $video Video object
-   */
-  private static function getEncoderPaths($video)
-  {
-    $ffmpegPath = Settings::get('ffmpeg');
-    $qt_faststart_path = Settings::get('qtfaststart');
-    $debugLogPath = LOG . '/' . $video->filename . '.log';
-    $rawVideo = UPLOAD_PATH . '/temp/' . $video->filename . '.' . $video->originalExtension;
-
-    return compact('ffmpegPath', 'qt_faststart_path', 'debugLogPath', 'rawVideo');
-  }
+    return false;
+}
 
   /**
    * Create SMIL file.
@@ -198,37 +133,5 @@ class EncodeTo extends PluginAbstract
       $config->debugConversion ? App::log(CONVERSION_LOG, "\nERROR - Problem creating SMIL file at $smilPath: $e") : null;
     }
   }
-  /**
-   * Set HD720 encoder paths from configs and filenames.
-   * 
-   * @param array $encoderPaths keyed array of path variables
-   * @param Video $video Video object
-   */
-  private static function getHDPaths($encoderPaths, $video)
-  {
-    $baseHDPath = UPLOAD_PATH . '/HD720/';
-    $encoderPaths["tempFilePath"] = $baseHDPath. $video->filename . '_temp.mp4';
-    $encoderPaths["filePath"] = $baseHDPath . $video->filename . '.mp4';
-    $encoderPaths["smilPath"] = UPLOAD_PATH . '/' . $video->filename . '.smil';
-
-    return $encoderPaths;
-  }
-  /**
-   * Format and output log info.
-   * 
-   * @param string $label label/type of log.
-   * @param string $message log content
-   * 
-   */
-  private static function debugLog($logType, $logPath, $command)
-  {
-    $config = Registry::get('config');
-    $logMessage = "\n\n\n\n==================================================================\n";
-    $logMessage .= "$logType\n";
-    $logMessage .= "==================================================================\n\n";
-    $logMessage .= "$logType Command: $command\n\n";
-    $logMessage .= "$logType Output:\n\n";
-    $config->debugConversion ? App::log(CONVERSION_LOG, "$logType Command: " . $command) : null;
-    App::log($logPath, $logMessage);
-  }
+  
 }
