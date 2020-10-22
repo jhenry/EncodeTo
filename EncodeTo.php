@@ -59,14 +59,14 @@ class EncodeTo extends PluginAbstract
     if (!EncodeTo::isAudio($video)) {
       $config = Registry::get('config');
       $commandOutput = $config->debugConversion ? CONVERSION_LOG : '/dev/null';
-      $command = 'nohup ' . Settings::get('php') . ' ' . DOC_ROOT . '/cc-content/plugins/EncodeTo/encode.php --video="' . $video->videoId . '" >> ' .  $commandOutput . ' 2>&1 &';
+      $command = Settings::get('php') . ' ' . DOC_ROOT . '/cc-content/plugins/EncodeTo/encode.php --video="' . $video->videoId . '" >> ' .  $commandOutput . ' 2>&1 &';
 
       if (class_exists('QEncoder')) 
       {
         $command = QEncoder::q_encoder($command);
       }
 
-      exec($command);
+      exec('nohup ' . $command);
     }
   }
 

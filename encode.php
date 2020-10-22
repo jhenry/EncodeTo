@@ -41,7 +41,8 @@ if ($config->debugConversion) {
 }
 
 try {
-  checkTranscoderPermissions($label, $path);
+  checkTranscoderPermissions("FFMPEG", $ffmpegPath);
+  checkTranscoderPermissions("qt-faststart", $qtFaststartPath);
 } catch (Exception $e) {
   handleException($e, false, $importJobId);
 }
@@ -207,6 +208,7 @@ function getEncoderPaths($video)
  */
 function checkTranscoderPermissions($label, $path)
 {
+  $config = Registry::get('config');
   $config->debugConversion ? App::log(CONVERSION_LOG, "\nChecking $label permissions...") : null;
   if (strpos($path, DOC_ROOT) !== false && Filesystem::getPermissions($path) != '0777') {
     try {
