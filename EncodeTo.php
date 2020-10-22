@@ -50,24 +50,27 @@ class EncodeTo extends PluginAbstract
   /**
    * Encode an HD720p version of the video.
    * TODO: validate user, etc
-   * TODO: clean up temp files.
    */
   public static function hd_encode()
   {
-    $video = EncodeTo::getVideoToEncode();
+	  if (class_exists('Wowza')) {
+		  Filesystem::createDir(UPLOAD_PATH . '/HD720/');
+	  }
 
-    if (!EncodeTo::isAudio($video)) {
-      $config = Registry::get('config');
-      $commandOutput = $config->debugConversion ? CONVERSION_LOG : '/dev/null';
-      $command = Settings::get('php') . ' ' . DOC_ROOT . '/cc-content/plugins/EncodeTo/encode.php --video="' . $video->videoId . '" >> ' .  $commandOutput . ' 2>&1 &';
+	  $video = EncodeTo::getVideoToEncode();
 
-      if (class_exists('QEncoder')) 
-      {
-        $command = QEncoder::q_encoder($command);
-      }
+	  if (!EncodeTo::isAudio($video)) {
+		  $config = Registry::get('config');
+		  $commandOutput = $config->debugConversion ? CONVERSION_LOG : '/dev/null';
+		  $command = Settings::get('php') . ' ' . DOC_ROOT . '/cc-content/plugins/EncodeTo/encode.php --video="' . $video->videoId . '" >> ' .  $commandOutput . ' 2>&1 &';
 
-      exec('nohup ' . $command);
-    }
+		  if (class_exists('QEncoder')) 
+		  {
+			  $command = QEncoder::q_encoder($command);
+		  }
+
+		  exec('nohup ' . $command);
+	  }
   }
 
   /**
