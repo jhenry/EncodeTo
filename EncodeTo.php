@@ -122,8 +122,12 @@ class EncodeTo extends PluginAbstract
 
     EncodeTo::debugLog("$type Encoding", $debugLogPath, $command);
 
+    $config->debugConversion ? App::log(CONVERSION_LOG, "\ $type conversion status  going in: $video->status") : null;
+
     // Execute encoding command
     exec($command);
+
+    $config->debugConversion ? App::log(CONVERSION_LOG, "\ $type conversion STATUS OUT: $video->status") : null;
 
     EncodeTo::validateFileCreation($tempFilePath, $video, "temp $type");
     EncodeTo::shiftMoovAtom($encoderPaths, $video, $type);
@@ -146,36 +150,6 @@ class EncodeTo extends PluginAbstract
     return $encoderPaths;
   }
 
-  /**
-   * Set HD720 encoder paths from configs and filenames.
-   * 
-   * @param array $encoderPaths keyed array of path variables
-   * @param Video $video Video object
-   */
-  public static function validateVideo($video, $type)
-  {
-    $config = Registry::get('config');
-
-    // Validate requested video
-    $config->debugConversion ? App::log(CONVERSION_LOG, "Validating requested $type video...") : null;
-    if (!$video) throw new Exception("An invalid video was passed to the $type video encoder.");
-
-    // Retrieve video path information
-    $config->debugConversion ? App::log(CONVERSION_LOG, 'Establishing variables...') : null;
-    $HDPaths = EncodeTo::getHDPaths($video);
-    extract($HDPaths);
-
-    // Verify Raw Video Exists
-    $config->debugConversion ? App::log(CONVERSION_LOG, "Verifying raw $type video exists...") : null;
-    if (!file_exists($rawVideo)) throw new Exception("The raw $type video file does not exists. The id of the video is: $video->videoId");
-
-    // Verify Raw Video has valid file size
-    // (Greater than min. 5KB, anything smaller is probably corrupted
-    $config->debugConversion ? App::log(CONVERSION_LOG, 'Verifying raw video was valid size...') : null;
-    if (!filesize($rawVideo) > 1024 * 5) throw new Exception("The raw $type video file is not a valid filesize. The id of the video is: $video->videoId");
-
-    return $video;
-  }
 
   /**
    * Shift Moov atom for faster streaming start times.
@@ -270,36 +244,13 @@ class EncodeTo extends PluginAbstract
     extract($HDPaths);
     try {
       // Delete pre-faststart files
-      $config->debugConversion ? App::log(CONVERSION_LOG, 'Deleting temp file for $type video...') : null;
+      $config->debugConversion ? App::log(CONVERSION_LOG, "Deleting temp file for $type video...") : null;
       Filesystem::delete($tempFilePath);
 
     } catch (Exception $e) {
       App::alert("Error During $type Video Encoding Cleanup for video: $video->videoId", $e->getMessage());
       App::log(CONVERSION_LOG, $e->getMessage());
     }
-  }
-
-  /**
-   * Handle general encoder failure/exception 
-   * 
-   */
-  public static function handleException($exception, $video = false, $importJobId = 0)
-  {
-    // Update video status
-    if ($video) {
-      $video->status = \VideoMapper::FAILED;
-      $video->jobId = null;
-      $videoMapper->save($video);
-    }
-
-    // Notify import script of error
-    if ($importJobId) {
-      \ImportManager::executeImport($importJobId);
-    }
-
-    App::alert('Error During Video Encoding', $exception->getMessage());
-    App::log(CONVERSION_LOG, $exception->getMessage());
-    exit();
   }
 
 
