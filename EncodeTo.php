@@ -42,9 +42,11 @@ class EncodeTo extends PluginAbstract
    */
   public function load()
   {
-    // Starting at top of upload completion controller, b/c we still have a videoId in the session vars
+    // Starting at top of upload completion controller, b/c we still 
+    // have a videoId in the session vars
     Plugin::attachEvent('encoder.after.thumbnail', array(__CLASS__, 'hd_encode'));
     Plugin::attachEvent('encoder.after.thumbnail', array(__CLASS__, 'createSMIL'));
+    Plugin::attachEvent('myvideos.start', array(__CLASS__, 'delete'));
   }
 
   /**
@@ -253,6 +255,43 @@ class EncodeTo extends PluginAbstract
     }
   }
 
+  
+  /**
+   * Delete the encoded content if the rest of the video is being deleted.
+   * 
+   */
+  public static function delete()
+  {
+    if (!empty($_GET['vid'])) {
+      $authService = new AuthService();
+      $user = $authService->getAuthUser();
+      if ($user) 
+      {
+        $videoMapper = new VideoMapper();
+        $video = $videoMapper->getVideoByCustom(array(
+              'user_id' => $user->userId,
+              'video_id' => $_GET['vid']
+              ));
+        if ($video) {
+
+          $config = Registry::get('config');
+          $HDPaths = EncodeTo::getHDPaths($video);
+          extract($HDPaths);
+          try {
+            if (file_exists($filePath))
+            {
+              // Delete the file
+              Filesystem::delete($filePath);
+            }
+
+          } catch (Exception $e) {
+            App::alert("Error During HD Video Deletion for video: $video->videoId", $e->getMessage());
+          }
+        }
+      }
+    }
+
+  }
 
   /**
    * Format and output log info.
