@@ -33,9 +33,7 @@ class EncodeTo extends PluginAbstract
    */
   public function install()
   {
-    Settings::set('HD720_encoding_options', '-acodec aac -b:a 128k -ac 2 -ar 44100  -af "aresample=first_pts=0" -pix_fmt yuv420p -vsync -1 -sn -vcodec libx264 -r 30 -vf "scale=min(1280\,trunc(iw/2)*2):trunc(ow/a/2)*2" -threads 0 -maxrate 3000k -bufsize 3000k -preset slower -profile:v high -tune film  -x264opts keyint=60:min-keyint=60:no-scenecut -map_metadata -1 -f mp4 -y');
-
-    Filesystem::createDir(UPLOAD_PATH . '/HD720/');
+    Settings::set('HD720_encoding_options', '-acodec aac -b:a 128k -ac 2 -ar 44100  -af "aresample=first_pts=0" -pix_fmt yuv420p -vsync 1 -sn -vcodec libx264 -r 29.970 -g 60 -b:v: 1024k -vf "scale=min(1280\,trunc(iw/2)*2):trunc(ow/a/2)*2" -threads 0 -maxrate 3000k -bufsize 3000k -preset slower -profile:v high -tune film -sc_threshold 0 -map_metadata -1 -f mp4 -y');
   }
   /**
    * Attaches plugin methods to hooks in code base
@@ -124,12 +122,8 @@ class EncodeTo extends PluginAbstract
 
     EncodeTo::debugLog("$type Encoding", $debugLogPath, $command);
 
-    $config->debugConversion ? App::log(CONVERSION_LOG, "\ $type conversion status  going in: $video->status") : null;
-
     // Execute encoding command
     exec($command);
-
-    $config->debugConversion ? App::log(CONVERSION_LOG, "\ $type conversion STATUS OUT: $video->status") : null;
 
     EncodeTo::validateFileCreation($tempFilePath, $video, "temp $type");
     EncodeTo::shiftMoovAtom($encoderPaths, $video, $type);
