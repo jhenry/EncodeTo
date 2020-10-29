@@ -35,14 +35,22 @@ class EncodeTo extends PluginAbstract
   {
     Settings::set('encodeto_720p_options', '-acodec aac -b:a 128k -ac 2 -ar 44100  -af "aresample=first_pts=0" -pix_fmt yuv420p -vsync 1 -sn -vcodec libx264 -r 29.970 -g 60 -b:v: 1024k -vf "scale=min(1280\,trunc(iw/2)*2):trunc(ow/a/2)*2" -threads 0 -maxrate 3000k -bufsize 3000k -preset slower -profile:v high -tune film -sc_threshold 0 -map_metadata -1 -f mp4 -y');
   }
+
+  /**
+   * Performs uninstall operations for plugin. Called when user clicks
+   * uninstall plugin in admin panel and prior to files being removed.
+   *
+   */
+  public function uninstall()
+  {
+    Settings::remove('encodeto_720p_options');
+  }
+
   /**
    * Attaches plugin methods to hooks in code base
    */
   public function load()
   {
-    Settings::set('encodeto_720p_options', '-acodec aac -b:a 128k -ac 2 -ar 44100  -af "aresample=first_pts=0" -pix_fmt yuv420p -vsync 1 -sn -vcodec libx264 -r 29.970 -g 60 -b:v: 1024k -vf "scale=min(1280\,trunc(iw/2)*2):trunc(ow/a/2)*2" -threads 0 -maxrate 3000k -bufsize 3000k -preset slower -profile:v high -tune film -sc_threshold 0 -map_metadata -1 -f mp4 -y');
-    // Starting at top of upload completion controller, b/c we still 
-    // have a videoId in the session vars
     Plugin::attachEvent('encoder.after.thumbnail', array(__CLASS__, 'hd_encode'));
     Plugin::attachEvent('encoder.after.thumbnail', array(__CLASS__, 'createSMIL'));
     Plugin::attachEvent('myvideos.start', array(__CLASS__, 'delete'));
@@ -81,7 +89,6 @@ class EncodeTo extends PluginAbstract
     if (isset($_SESSION['upload']->videoId)) {
       $video_id = $_SESSION['upload']->videoId;
       $video = $videoMapper->getVideoById($video_id);
-      //$video = $videoMapper->getVideoByCustom(array('video_id' => $video_id, 'status' => VideoMapper::PENDING_CONVERSION));
       return $video;
     }
   }
