@@ -281,6 +281,17 @@ class EncodeTo extends PluginAbstract
           } catch (Exception $e) {
             App::alert("Error During HD Video Deletion for video: $video->videoId", $e->getMessage());
           }
+          // Delete SMIL
+          try {
+            if (file_exists($smilPath))
+            {
+              // Delete the file
+              Filesystem::delete($smilPath);
+            }
+
+          } catch (Exception $e) {
+            App::alert("Error deleting SMIL for video: $video->videoId", $e->getMessage());
+          }
         }
       }
     }
