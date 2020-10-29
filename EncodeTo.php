@@ -33,13 +33,14 @@ class EncodeTo extends PluginAbstract
    */
   public function install()
   {
-    Settings::set('HD720_encoding_options', '-acodec aac -b:a 128k -ac 2 -ar 44100  -af "aresample=first_pts=0" -pix_fmt yuv420p -vsync 1 -sn -vcodec libx264 -r 29.970 -g 60 -b:v: 1024k -vf "scale=min(1280\,trunc(iw/2)*2):trunc(ow/a/2)*2" -threads 0 -maxrate 3000k -bufsize 3000k -preset slower -profile:v high -tune film -sc_threshold 0 -map_metadata -1 -f mp4 -y');
+    Settings::set('encodeto_720p_options', '-acodec aac -b:a 128k -ac 2 -ar 44100  -af "aresample=first_pts=0" -pix_fmt yuv420p -vsync 1 -sn -vcodec libx264 -r 29.970 -g 60 -b:v: 1024k -vf "scale=min(1280\,trunc(iw/2)*2):trunc(ow/a/2)*2" -threads 0 -maxrate 3000k -bufsize 3000k -preset slower -profile:v high -tune film -sc_threshold 0 -map_metadata -1 -f mp4 -y');
   }
   /**
    * Attaches plugin methods to hooks in code base
    */
   public function load()
   {
+    Settings::set('encodeto_720p_options', '-acodec aac -b:a 128k -ac 2 -ar 44100  -af "aresample=first_pts=0" -pix_fmt yuv420p -vsync 1 -sn -vcodec libx264 -r 29.970 -g 60 -b:v: 1024k -vf "scale=min(1280\,trunc(iw/2)*2):trunc(ow/a/2)*2" -threads 0 -maxrate 3000k -bufsize 3000k -preset slower -profile:v high -tune film -sc_threshold 0 -map_metadata -1 -f mp4 -y');
     // Starting at top of upload completion controller, b/c we still 
     // have a videoId in the session vars
     Plugin::attachEvent('encoder.after.thumbnail', array(__CLASS__, 'hd_encode'));
@@ -118,7 +119,7 @@ class EncodeTo extends PluginAbstract
 
     // Build the encoder command.
     $config->debugConversion ? App::log(CONVERSION_LOG, "\nPreparing for $type Encoding...") : null;
-    $command = "$ffmpegPath -i $rawVideo " . Settings::get('HD720_encoding_options') . " $tempFilePath >> $debugLogPath 2>&1";
+    $command = "$ffmpegPath -i $rawVideo " . Settings::get('encodeto_720p_options') . " $tempFilePath >> $debugLogPath 2>&1";
 
     EncodeTo::debugLog("$type Encoding", $debugLogPath, $command);
 
@@ -337,6 +338,96 @@ class EncodeTo extends PluginAbstract
     } catch (Exception $e) {
       $config->debugConversion ? App::log(CONVERSION_LOG, "\nERROR - Problem creating SMIL file at $smilPath: $e") : null;
     }
+  }
+
+/**
+   * Outputs the settings page HTML and handles form posts on the plugin's
+   * settings page.
+   */
+  public function settings()
+  {
+    $data = array();
+    $errors = array();
+    $message = null;
+
+    // Retrieve settings from database
+    $data['encodeto_720p_options'] = Settings::get('encodeto_720p_options');
+    $data['encodeto_1080p_options'] = Settings::get('encodeto_1080p_options');
+
+    // Handle form if submitted
+    if (isset($_POST['submitted'])) {
+      // Validate form nonce token and submission speed
+      $is_valid_form = Stats::_validate_form_nonce();
+
+      if( $is_valid_form ){
+        if( !empty($_POST['encodeto_720p_options']) ) {
+          $data['encodeto_720p_options'] = $_POST['encodeto_720p_options'];
+        } else {
+          $errors['encodeto_720p_options'] = "Encoder command options cannot be empty: " . $_POST['encodeto_720p_options'] . ". ";
+        }
+
+        if( !empty($_POST['encodeto_1080p_options']) ) {
+          $data['encodeto_1080p_options'] = $_POST['encodeto_1080p_options'];
+        } else {
+          $errors['encodeto_1080p_options'] = "Encoder command options cannot be empty: " . $_POST['encodeto_1080p_options'] . ". ";
+        }
+
+      }
+      else {
+        $errors['session'] = 'Expired or invalid session';
+      }
+
+      // Error check and update data
+      EncodeTo::_handle_settings_form($data, $errors);
+
+    }
+    // Generate new form nonce
+    $formNonce = md5(uniqid(rand(), true));
+    $_SESSION['formNonce'] = $formNonce;
+    $_SESSION['formTime'] = time();
+
+
+    // Display form
+    include(dirname(__FILE__) . '/settings_form.php');
+  }
+
+  /**
+   * Check for form errors and save settings
+   * 
+   */
+  private static function _handle_settings_form($data, $errors){
+    if (empty($errors)) {
+      foreach ($data as $key => $value) {
+        Settings::set($key, $value);
+      }
+      $message = 'Settings have been updated.';
+      $message_type = 'alert-success';
+    } else {
+      $message = 'The following errors were found. Please correct them and try again.';
+      $message .= '<br /><br /> - ' . implode('<br /> - ', $errors);
+      $message_type = 'alert-danger';
+    }
+  }
+
+  /**
+   * Validate settings form nonce token and submission speed
+   * 
+   */
+  private static function _validate_form_nonce(){
+    if (
+        !empty($_POST['nonce'])
+        && !empty($_SESSION['formNonce'])
+        && !empty($_SESSION['formTime'])
+        && $_POST['nonce'] == $_SESSION['formNonce']
+        && time() - $_SESSION['formTime'] >= 2
+       ) {
+      return true;
+
+    } 
+    else {
+      return false;
+    }
+
   }
 
 }
