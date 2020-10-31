@@ -68,7 +68,6 @@ class EncodeTo extends PluginAbstract
       $config = Registry::get('config');
       $config->debugConversion ? App::log(CONVERSION_LOG, "\n$type Converter Called For Video: $video->videoId") : null;
       EncodeTo::runEncoder($video, 'H.264 720p', '/HD720/', Settings::get('encodeto_720p_options'));
-      EncodeTo::runEncoder($video, '1080p', '/1080p/', Settings::get('encodeto_1080p_options'));
     }
   }
 
