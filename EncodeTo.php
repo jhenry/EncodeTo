@@ -34,6 +34,7 @@ class EncodeTo extends PluginAbstract
   public function install()
   {
     Settings::set('encodeto_720p_options', '-acodec aac -b:a 128k -ac 2 -ar 44100  -af "aresample=first_pts=0" -pix_fmt yuv420p -vsync 1 -sn -vcodec libx264 -r 29.970 -g 60 -b:v: 1024k -vf "scale=min(1280\,trunc(iw/2)*2):trunc(ow/a/2)*2" -threads 0 -maxrate 3000k -bufsize 3000k -preset slower -profile:v high -tune film -sc_threshold 0 -map_metadata -1 -f mp4 -y');
+    Settings::set('encodeto_1080p_options', '-acodec aac -b:a 128k -ac 2 -ar 44100  -af "aresample=first_pts=0" -pix_fmt yuv420p -vsync 1 -sn -vcodec libx264 -r 29.970 -g 60 -b:v: 3400k -vf "scale=min(1920\,trunc(iw/2)*2):trunc(ow/a/2)*2" -threads 0 -maxrate 3000k -bufsize 3000k -preset slower -profile:v high -tune film -sc_threshold 0 -map_metadata -1 -f mp4 -y');
   }
 
   /**
@@ -44,6 +45,7 @@ class EncodeTo extends PluginAbstract
   public function uninstall()
   {
     Settings::remove('encodeto_720p_options');
+    Settings::remove('encodeto_1080p_options');
   }
 
   /**
@@ -57,25 +59,36 @@ class EncodeTo extends PluginAbstract
   }
 
   /**
-   * Encode an HD720p version of the video.
-   * TODO: validate user, etc
+   * Encode an HD version of the video.
    */
   public static function hd_encode($video)
   {
-    $type = "H.264 720p";
-
-    if (class_exists('Wowza')) {
-      Filesystem::createDir(UPLOAD_PATH . '/HD720/');
-    }
-
-    $config = Registry::get('config');
-    $config->debugConversion ? App::log(CONVERSION_LOG, "\n$type Converter Called For Video: $video->videoId") : null;
 
     if (!EncodeTo::isAudio($video)) {
-      $HDPaths = EncodeTo::getHDPaths($video);
-      EncodeTo::encode($video, $type);
-      EncodeTo::cleanup($HDPaths, $video, $type);
+      $config = Registry::get('config');
+      $config->debugConversion ? App::log(CONVERSION_LOG, "\n$type Converter Called For Video: $video->videoId") : null;
+      EncodeTo::runEncoder($video, 'H.264 720p', '/HD720/', Settings::get('encodeto_720p_options'));
+      EncodeTo::runEncoder($video, '1080p', '/1080p/', Settings::get('encodeto_1080p_options'));
     }
+  }
+
+  /**
+   * Encode to a specific format
+   * 
+   */
+  private static function runEncoder($video, $label, $dir, $options)
+  {
+
+    if (class_exists('Wowza')) {
+      Filesystem::createDir(UPLOAD_PATH . $dir);
+    }
+
+    $encoderPaths = EncodeTo::getEncoderPaths($video);
+    $HDPaths = EncodeTo::getHDPaths($video, $encoderPaths, $dir);
+    EncodeTo::encode($video, $label, $HDPaths, $options);
+    EncodeTo::validateFileCreation($HDPaths['tempFilePath'], $video, "temp $label");
+    EncodeTo::shiftMoovAtom($HDPaths, $video, $label);
+    EncodeTo::cleanup($HDPaths, $video, $label);
   }
 
   /**
@@ -116,25 +129,20 @@ class EncodeTo extends PluginAbstract
    * @param Video $video Video object
    * @param string $type type of file, i.e. temp, final, HD, mp3, etc. 
    */
-  public static function encode($video, $type)
+  public static function encode($video, $label, $paths, $options)
   {
     $config = Registry::get('config');
 
-    $encoderPaths = EncodeTo::getEncoderPaths($video);
-    $HDPaths = EncodeTo::getHDPaths($video, $encoderPaths);
-    extract($HDPaths);
+    extract($paths);
 
     // Build the encoder command.
-    $config->debugConversion ? App::log(CONVERSION_LOG, "\nPreparing for $type Encoding...") : null;
+    $config->debugConversion ? App::log(CONVERSION_LOG, "\nPreparing for $label Encoding...") : null;
     $command = "$ffmpegPath -i $rawVideo " . Settings::get('encodeto_720p_options') . " $tempFilePath >> $debugLogPath 2>&1";
 
-    EncodeTo::debugLog("$type Encoding", $debugLogPath, $command);
+    EncodeTo::debugLog("$label Encoding", $debugLogPath, $command);
 
     // Execute encoding command
     exec($command);
-
-    EncodeTo::validateFileCreation($tempFilePath, $video, "temp $type");
-    EncodeTo::shiftMoovAtom($encoderPaths, $video, $type);
   }
 
   /**
@@ -162,10 +170,9 @@ class EncodeTo extends PluginAbstract
    * @param Video $video Video object
    * @param string $type type of file, i.e. temp, final, HD, mp3, etc. 
    */
-  public static function shiftMoovAtom($encoderVars, $video, $type)
+  public static function shiftMoovAtom($encoderPaths, $video, $type)
   {
 
-    $encoderPaths = EncodeTo::getHDPaths($video, $encoderVars);
     extract($encoderPaths);
 
     // Debug Log
@@ -244,8 +251,7 @@ class EncodeTo extends PluginAbstract
   public static function cleanup($encoderPaths, $video, $type)
   {
     $config = Registry::get('config');
-    $HDPaths = EncodeTo::getHDPaths($video, $encoderPaths);
-    extract($HDPaths);
+    extract($encoderPaths);
     try {
       // Delete pre-faststart files
       $config->debugConversion ? App::log(CONVERSION_LOG, "Deleting temp file for $type video...") : null;
@@ -276,32 +282,55 @@ class EncodeTo extends PluginAbstract
               ));
         if ($video) {
 
-          $config = Registry::get('config');
-          $HDPaths = EncodeTo::getHDPaths($video);
-          extract($HDPaths);
-          try {
-            if (file_exists($filePath))
-            {
-              // Delete the file
-              Filesystem::delete($filePath);
-            }
+          $HD720Paths = EncodeTo::getHDPaths($video);
+          EncodeTo::deleteHDVideo($video, $HD720Paths);
 
-          } catch (Exception $e) {
-            App::alert("Error During HD Video Deletion for video: $video->videoId", $e->getMessage());
-          }
+          $HD1080Paths = EncodeTo::getHDPaths($video, array(), '/1080p/');
+          EncodeTo::deleteHDVideo($video, $HD1080Paths);
+
           // Delete SMIL
-          try {
-            if (file_exists($smilPath))
-            {
-              // Delete the file
-              Filesystem::delete($smilPath);
-            }
-
-          } catch (Exception $e) {
-            App::alert("Error deleting SMIL for video: $video->videoId", $e->getMessage());
-          }
+          EncodeTo::deleteSMIL($video, $HD1080Paths['smilPath']);
         }
       }
+    }
+
+  }
+
+  /**
+   * Delete a hd video
+   * 
+   */
+  public static function deleteHDVideo($video, $HDPaths)
+  {
+    extract($HDPaths);
+    try {
+      if (file_exists($filePath))
+      {
+        // Delete the file
+        Filesystem::delete($filePath);
+      }
+
+    } catch (Exception $e) {
+      App::alert("Error During HD Video Deletion for video: $video->videoId", $e->getMessage());
+    }
+
+  }
+
+  /**
+   * Delete the smil file 
+   * 
+   */
+  public static function deleteSMIL($video, $smilPath)
+  {
+    try {
+      if (file_exists($smilPath))
+      {
+        // Delete the file
+        Filesystem::delete($smilPath);
+      }
+
+    } catch (Exception $e) {
+      App::alert("Error deleting SMIL for video: $video->videoId", $e->getMessage());
     }
 
   }
